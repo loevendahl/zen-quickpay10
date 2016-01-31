@@ -1,4 +1,10 @@
 <?php
+<<<<<<< HEAD
+=======
+ini_set('display_errors','on');
+error_reporting(0);
+require_once(DIR_FS_CATALOG.DIR_WS_CLASSES.'QuickpayApi.php');
+>>>>>>> refs/remotes/origin/master
 /*
   quickpay.php
 
@@ -61,10 +67,18 @@ class quickpay_advanced{
 			
         }
 //V10       
+<<<<<<< HEAD
             
 			$this->form_action_url = 'https://payment.quickpay.net/';
  
             //$this->form_action_url = 'https://secure.quickpay.dk/form/';
+=======
+           if($_POST['quickpayIT'] == "go" && !isset($_SESSION['qlink'])) { 
+			$this->form_action_url = 'https://payment.quickpay.net/';
+		   }else{
+            $this->form_action_url = zen_href_link(FILENAME_CHECKOUT_CONFIRMATION, '', 'SSL');
+		   }
+>>>>>>> refs/remotes/origin/master
    
     }
 
@@ -252,8 +266,17 @@ $icon = (file_exists(DIR_WS_ICONS.$option."_payment.gif") ? DIR_WS_ICONS.$option
 		$space = 5;
 		//define payment icon width
 		if(strstr($icon, "_payment")){
+<<<<<<< HEAD
 			$w=60;
 			$h= 22;
+=======
+			$w=120;
+			$h= 27;
+			if(strstr($icon, "3d")){
+				$w=60;
+			}
+			
+>>>>>>> refs/remotes/origin/master
 		}else{
 			   $w= 35;
 			   $h= 22;
@@ -587,7 +610,11 @@ function process_button() {
 					'amount'                       => $qp_order_amount,
 					'autocapture'                  => $qp_autocapture,
 					'autofee'                      => $qp_autofee,
+<<<<<<< HEAD
 					'branding_id'                  => $qp_branding_id,
+=======
+					//'branding_id'                  => $qp_branding_id,
+>>>>>>> refs/remotes/origin/master
 					'callbackurl'                  => $qp_callbackurl,
 					'cancelurl'                    => $qp_cancelurl,
 					'continueurl'                  => $qp_continueurl,
@@ -606,6 +633,7 @@ function process_button() {
 					'subscription'                 => $qp_subscription,
 					'version'                      => 'v10'
 						);
+<<<<<<< HEAD
 $process_parameters = array_merge($process_parameters,$varsvalues);
 		
 	
@@ -620,6 +648,57 @@ $process_parameters = array_merge($process_parameters,$varsvalues);
 
 
     $process_button_string .= $process_fields;
+=======
+ 
+ 
+ 
+ 
+ $process_parameters = array_merge($process_parameters,$varsvalues);
+
+
+		
+if($_POST['callquickpay'] == "go") {
+	    $apiorder= new QuickpayApi();
+	$apiorder->setOptions(MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY);
+	//set status request mode
+	$mode = (MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "" : "1");
+	  	//been here before?
+	    $exists = $this->get_quickpay_order_status($_SESSION['order_id'], $mode);
+	
+    $qid = $exists["qid"];
+	//set to create/update mode
+	$apiorder->mode = (MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "payments/" : "subscriptions/");
+	  
+	  if($exists["qid"] == null){
+
+      //create new quickpay order	
+      $storder = $apiorder->createorder($qp_order_id, $qp_currency_code, $process_parameters);
+      $qid = $storder["id"];
+
+      }else{
+       $qid = $exists["qid"];
+       }
+		$storder = $apiorder->link($qid, $process_parameters);
+	
+		if($storder['url']){
+			$process_button_string .= "<script>
+     
+window.location.replace('".$storder['url']."');
+      </script>";
+		}else{
+			$process_button_string .= "<script>
+       alert('Quickpay error: Payment module is not properly configured');
+
+      </script>";
+			
+			}
+	$process_button_string .=  "<input type='hidden' value='go' name='callquickpay' />". "\n".
+            	"<input type='hidden' value='" . $_POST['cardlock'] . "' name='cardlock' />";
+	 
+}
+	$process_button_string .=  "<input type='hidden' value='go' name='callquickpay' />". "\n".
+            	"<input type='hidden' value='" . $_POST['cardlock'] . "' name='cardlock' />";
+>>>>>>> refs/remotes/origin/master
 
   
 
@@ -632,6 +711,7 @@ $process_parameters = array_merge($process_parameters,$varsvalues);
 
  $checkorderid = $this->get_quickpay_order_status($_SESSION['order_id']);
 
+<<<<<<< HEAD
  if($checkorderid != $_SESSION['order_id']){
 	
 
@@ -640,6 +720,167 @@ $process_parameters = array_merge($process_parameters,$varsvalues);
 
 	
   }
+=======
+ if($checkorderid["oid"] != $_SESSION['order_id']){
+zen_redirect(zen_href_link(FILENAME_CHECKOUT_PAYMENT, 'payment_error=' . $this->code, 'SSL'));
+ }
+//run callback operation triggered from callback form
+
+	//not a dummy callback
+	$this->process_callback();
+	
+
+	
+  }
+  
+function process_callback(){
+global $db, $order;
+	$api= new QuickpayApi();
+
+	$api->setOptions(MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY);
+    $order_id = $_SESSION['order_id'];
+	
+  try {
+
+     $api->mode = (MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "payments?order_id=" : "subscriptions?order_id=");
+    // Commit the status request, checking valid transaction id
+    $st = $api->status(MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID."_".sprintf('%04d', $order_id));
+
+
+if($st[0]["id"]){
+   $st[0]["operations"] = array_reverse($st[0]["operations"]);
+    $qp_status = $st[0]["operations"][0]["qp_status_code"];
+ $qp_status_msg = $st[0]["operations"][0]["qp_status_msg"];
+ $qp_order_id = str_replace(MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID."_","", $st[0]["order_id"]);
+ $qp_aq_status_code = $st[0]["aq_status_code"];
+ $qp_aq_status_msg = $st[0]["aq_status_msg"];
+  $qp_cardtype = $st[0]["metadata"]["brand"];
+  $qp_cardnumber = "xxxx-xxxxxx-".$st[0]["metadata"]["last4"];
+  $qp_amount = $st[0]["operations"][0]["amount"];
+  $qp_currency = $st[0]["currency"];
+  $qp_pending = ($st[0]["pending"] == "true" ? " - pending ": "");
+  $qp_expire = $st[0]["metadata"]["exp_month"]."-".$st[0]["metadata"]["exp_year"];
+ 
+  $qp_cardhash = $st[0]["operations"][0]["type"].(strstr($st[0]["description"],'Subscription') ? " Subscription" : "");
+   
+   
+$qp_approved = false;
+/*
+20000	Approved
+40000	Rejected By Acquirer
+40001	Request Data Error
+50000	Gateway Error
+50300	Communications Error (with Acquirer)
+*/
+
+switch ($qp_status) {
+    case '20000':
+        // approved
+        $qp_approved = true;
+        break;
+    case '40000':
+	case '40001':
+        // Error in request data.
+        // write status message into order to retrieve it as error message on checkout_payment
+
+        $sql_data_array = array('cc_transactionid' => zen_db_input($qp_status_msg),
+            'last_modified' => 'now()');
+
+
+        // reject order by updating status
+        zen_db_perform(TABLE_ORDERS, $sql_data_array, 'update', "orders_id = '" . $qp_order_id . "'");
+
+
+        $sql_data_array = array('orders_id' => $qp_order_id,
+            'orders_status_id' => MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID,
+            'date_added' => 'now()',
+            'customer_notified' => '0',
+            'comments' => 'QuickPay Payment rejected [message:' . $qp_status_msg . ' - '.$qp_aq_status_msg.']');
+
+        //zen_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
+
+        break;
+
+    default:
+
+        $sql_data_array = array('cc_transactionid' => $qp_status,
+            'last_modified' => 'now()');
+
+        // approve order by updating status
+        zen_db_perform(TABLE_ORDERS, $sql_data_array, 'update', "orders_id = '" . $qp_order_id . "'");
+
+
+        $sql_data_array = array('orders_id' => $qp_order_id,
+            'orders_status_id' => MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID,
+            'date_added' => 'now()',
+            'customer_notified' => '0',
+            'comments' => 'QuickPay Payment rejected [status code:' . $qp_status . ']');
+
+        //zen_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
+
+        break;
+}
+if ($qp_approved) {
+	//$order = new order();
+    // payment approved
+  			//update order info		
+// set order status as configured in the module
+            $order_status_id = (MODULE_PAYMENT_QUICKPAY_ADVANCED_ORDER_STATUS_ID > 0 ? (int) MODULE_PAYMENT_QUICKPAY_ADVANCED_ORDER_STATUS_ID : (int) DEFAULT_ORDERS_STATUS_ID);
+$order->info['cc_number'] = $qp_cardnumber;
+$order->info['cc_type'] = $qp_cardtype;
+$order->info['cc_expires'] = ($qp_expire ? $qp_expire : 'N/A');
+$order->info['order_status'] = $order_status_id;
+ 
+  //clean up preparing order, let ZenCart create  order data as usual
+
+                   //    $db->Execute('delete from ' . TABLE_ORDERS_TOTAL . ' where orders_id = "' . (int) $order_id . '"');
+          
+             //clean up preparing order
+                    $db->Execute('delete from ' . TABLE_ORDERS_PRODUCTS . ' where orders_id = "' . (int) $order_id . '"');
+                    $db->Execute('delete from ' . TABLE_ORDERS_PRODUCTS_ATTRIBUTES . ' where orders_id = "' . (int) $order_id . '"');
+                    $db->Execute('delete from ' . TABLE_ORDERS_PRODUCTS_DOWNLOAD . ' where orders_id = "' . (int) $order_id . '"');       
+  
+	   // update order
+    $sql = "select orders_status from " . TABLE_ORDERS . " where orders_id = '" . $qp_order_id . "' and orders_status = '". MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID."' ";
+    $order_query = $db->Execute($sql);
+
+    if (!$order_query->EOF) {
+
+            $sql_data_array = array('cc_transactionid' => $st[0]["id"],
+			    'cc_cardhash' => $qp_cardhash,
+				'orders_status' => $order_status_id,
+                'last_modified' => 'now()');
+	
+            // approve order by updating status
+            zen_db_perform(TABLE_ORDERS, $sql_data_array, 'update', "orders_id = '" . $qp_order_id . "'");
+
+			
+        }
+    }   
+    $eval = $order_id;
+	}else{
+		
+	    $sql_data_array = array('cc_transactionid' => zen_db_input(MODULE_PAYMENT_QUICKPAY_ADVANCED_ERROR_TRANSACTION_DECLINED),
+		'orders_status' => MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID);
+    zen_db_perform(TABLE_ORDERS, $sql_data_array, 'update', "orders_id = '" . $order_id . "'");
+		
+	$eval = "not valid";
+		
+	}
+  
+  } catch (Exception $e) {
+   $eval = 'QuickPay Status: ';
+		  	// An error occured with the status request
+          $eval .= 'Problem: ' . $this->json_message_front($e->getMessage()) ;
+		//todo: use message frontend...
+  }
+
+    return $eval;
+	
+  }
+  
+  
+>>>>>>> refs/remotes/origin/master
   /**
    *
    */
@@ -694,7 +935,11 @@ function get_error() {
         $error = array('title' => MODULE_PAYMENT_QUICKPAY_ADVANCED_TEXT_ERROR,
             'error' => $error_desc);
 			
+<<<<<<< HEAD
 		unset($_SESSION['order_id']);
+=======
+		//unset($_SESSION['order_id']);
+>>>>>>> refs/remotes/origin/master
 	
 	
         return $error;
@@ -870,7 +1115,11 @@ $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, conf
    $oid = $db->insert_ID();
 	  $sql_data_array = array('orders_status_id' => MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID,
       'orders_id' => $oid);
+<<<<<<< HEAD
     zen_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
+=======
+    //zen_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
+>>>>>>> refs/remotes/origin/master
      
 	 return $oid;
   }
@@ -980,6 +1229,7 @@ public function sign($params, $api_key) {
    return hash_hmac("sha256", $base, $api_key);
  }
  
+<<<<<<< HEAD
 private function get_quickpay_order_status($order_id) {
 global $db, $order, $currencies;
  include(DIR_FS_CATALOG.DIR_WS_CLASSES.'QuickpayApi.php');
@@ -1136,6 +1386,30 @@ $order->info['order_status'] = $order_status_id;
 		
 	$eval = "not valid";
 		
+=======
+private function get_quickpay_order_status($order_id, $mode="") {
+global $db, $order, $currencies;
+ 
+	$api= new QuickpayApi();
+
+	$api->setOptions(MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY);
+    $api->mode = ($mode=="" ? "payments?order_id=" : "subscriptions?order_id=");
+  try {
+	
+   // Commit the status request, checking valid transaction id
+    $st = $api->status(MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID."_".sprintf('%04d', $order_id));
+	
+		
+	
+		$eval = array();
+	if($st[0]["id"]){
+
+    $eval["oid"] = str_replace(MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID."_","", $st[0]["order_id"]);
+	$eval["qid"] = $st[0]["id"];
+	}else{
+	$eval["oid"] = null;
+	$eval["qid"] = null;	
+>>>>>>> refs/remotes/origin/master
 	}
   
   } catch (Exception $e) {
