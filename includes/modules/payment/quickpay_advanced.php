@@ -1,7 +1,9 @@
 <?php
 ini_set('display_errors','on');
 error_reporting(0);
+
 require_once(DIR_FS_CATALOG.DIR_WS_CLASSES.'QuickpayApi.php');
+
 /*
   quickpay.php
 
@@ -423,25 +425,28 @@ function process_button() {
    
         global $db, $_POST, $customer_id, $order, $currencies, $currency, $languages_id, $language, $cart_QuickPay_ID, $order_total_modules;
    
-   
+
 
    
     // We need order_id to pass to the gateway
     // But we do not have the order_id at this moment. 
     // So instead we create the order_id now and bypass the usual checkout_process.php function
-    if (!isset($_SESSION['order_id'])) {
-      // Assign order_id
-     $_SESSION['order_id'] = $this->create_order();
-	  //insert data in proforma (preparing ) order
+    if (!isset($_SESSION['order_id']) && $_POST['callquickpay'] == "go") {
+      //insert data in proforma (preparing ) order
       $order->info['payment_method_code'] = $this->code;
 	  $order->info['payment_method'] = "Quickpay";
 	  $order->info["order_status"] = MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID;
+
+	  // Assign order_id
+     $_SESSION['order_id'] = $order->create($order_total_modules->process());
+
 	  //preparing order update
-	  $order->create($order_total_modules->process());
-	  $order->create_add_products($_SESSION['order_id']);
-    
+	 $order->create_add_products($_SESSION['order_id']);
+       $sql_data_array = array( 'orders_status' => MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID);
+      zen_db_perform(TABLE_ORDERS, $sql_data_array,'update',"orders_id=".$_SESSION['order_id']);
     }
-  
+
+
 
 
     $process_button_string = '';
@@ -469,6 +474,7 @@ function process_button() {
          $qp_branding_id = "";
 
 	     $qp_subscription = (MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "" : "1");
+		 $qp_type = ($qp_subscription == "" ? "Payment" : "Subscription");
 		 $qp_cardtypelock = $_POST['cardlock'];
 		 $qp_autofee = (MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOFEE == "No" || $qp_cardtypelock == 'viabill' ? "0" : "1");
          $qp_description = "Merchant ".$qp_merchant_id." ".(MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "Authorize" : "Subscription");
@@ -480,7 +486,7 @@ function process_button() {
         $qp_currency_code = $order->info['currency'];
 	
 
-	    $qp_callbackurl = HTTP_SERVER.DIR_WS_CATALOG.'callback10.php?securityToken=' . $_SESSION['securityToken'];
+	    $qp_callbackurl = HTTP_SERVER.DIR_WS_CATALOG.'callback10.php?securityToken=' . $_SESSION['securityToken']."&type=".$qp_type;
 		//"dummy call" - ignore actions and keep session...
 		$qp_continueurl = HTTP_SERVER.DIR_WS_CATALOG.'callback10.php';
         $qp_cancelurl = str_replace("&amp;","&", zen_href_link(FILENAME_CHECKOUT_PAYMENT, 'payment_error=' . $this->code, 'SSL'));
@@ -577,6 +583,7 @@ function process_button() {
         }
 		
         //$varsvalues["variables[products]"] = html_entity_decode($ps);
+		$varsvalues["variables[orderlang]"] = '"'.$language.'"';
 		$varsvalues["variables[shopsystem]"] = "ZenCart";
   
 
@@ -657,12 +664,19 @@ window.location.replace('".$storder['url']."');
       </script>";
 			
 			}
-	$process_button_string .=  "<input type='hidden' value='go' name='callquickpay' />". "\n".
-            	"<input type='hidden' value='" . $_POST['cardlock'] . "' name='cardlock' />";
+	//$process_button_string .=  "<input type='hidden' value='go' name='callquickpay' />". "\n".
+            //	"<input type='hidden' value='" . $_POST['cardlock'] . "' name='cardlock' />
+			//	<input type='hidden' value='" . $_POST['conditions'] . "' name='conditions' />";
+			
 	 
 }
-	$process_button_string .=  "<input type='hidden' value='go' name='callquickpay' />". "\n".
-            	"<input type='hidden' value='" . $_POST['cardlock'] . "' name='cardlock' />";
+	$process_button_string .=  "<input type='hidden' value='go' name='callquickpay' />". "\n";
+            //	"<input type='hidden' value='" . $_POST['cardlock'] . "' name='cardlock' />
+			//	<input type='hidden' value='" . $_POST['conditions'] . "' name='conditions' />";
+	foreach($_POST as $key=>$value){
+				$process_button_string .= "<input type='hidden' value='".$value."' name='".$key."' />". "\n";
+				
+			}
 
   
 
@@ -672,8 +686,8 @@ window.location.replace('".$storder['url']."');
 
   function before_process() {
 
-
- $checkorderid = $this->get_quickpay_order_status($_SESSION['order_id']);
+$mode = (MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "" : "1");
+ $checkorderid = $this->get_quickpay_order_status($_SESSION['order_id'], $mode);
 
  if($checkorderid["oid"] != $_SESSION['order_id']){
 zen_redirect(zen_href_link(FILENAME_CHECKOUT_PAYMENT, 'payment_error=' . $this->code, 'SSL'));
@@ -688,7 +702,7 @@ zen_redirect(zen_href_link(FILENAME_CHECKOUT_PAYMENT, 'payment_error=' . $this->
   }
   
 function process_callback(){
-global $db, $order;
+global $db, $order, $language;
 	$api= new QuickpayApi();
 
 	$api->setOptions(MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY);
@@ -703,6 +717,7 @@ global $db, $order;
 
 if($st[0]["id"]){
    $st[0]["operations"] = array_reverse($st[0]["operations"]);
+   $qp_id = $st[0]["id"];
     $qp_status = $st[0]["operations"][0]["qp_status_code"];
  $qp_status_msg = $st[0]["operations"][0]["qp_status_msg"];
  $qp_order_id = str_replace(MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID."_","", $st[0]["order_id"]);
@@ -714,7 +729,8 @@ if($st[0]["id"]){
   $qp_currency = $st[0]["currency"];
   $qp_pending = ($st[0]["pending"] == "true" ? " - pending ": "");
   $qp_expire = $st[0]["metadata"]["exp_month"]."-".$st[0]["metadata"]["exp_year"];
- 
+  $qp_type = $st[0]["type"];
+  $qp_lang = $st[0]["variables"]["orderlang"];
   $qp_cardhash = $st[0]["operations"][0]["type"].(strstr($st[0]["description"],'Subscription') ? " Subscription" : "");
    
    
@@ -764,7 +780,7 @@ switch ($qp_status) {
         zen_db_perform(TABLE_ORDERS, $sql_data_array, 'update', "orders_id = '" . $qp_order_id . "'");
 
 
-        $sql_data_array = array('orders_id' => $qp_order_id,
+        $sql_data_array = array('orders_id' => $order_id,
             'orders_status_id' => MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID,
             'date_added' => 'now()',
             'customer_notified' => '0',
@@ -775,7 +791,7 @@ switch ($qp_status) {
         break;
 }
 if ($qp_approved) {
-	//$order = new order();
+
     // payment approved
   			//update order info		
 // set order status as configured in the module
@@ -784,18 +800,16 @@ $order->info['cc_number'] = $qp_cardnumber;
 $order->info['cc_type'] = $qp_cardtype;
 $order->info['cc_expires'] = ($qp_expire ? $qp_expire : 'N/A');
 $order->info['order_status'] = $order_status_id;
- 
-  //clean up preparing order, let ZenCart create  order data as usual
+ if(!$_SESSION['link'] && !$_SESSION['link'] == $qp_id){
+  //clean up preparing order, let ZenCart create  order data as usual if it is not a linked order
 
-                   //    $db->Execute('delete from ' . TABLE_ORDERS_TOTAL . ' where orders_id = "' . (int) $order_id . '"');
-          
-             //clean up preparing order
+                    $db->Execute('delete from ' . TABLE_ORDERS_TOTAL . ' where orders_id = "' . (int) $order_id . '"');
                     $db->Execute('delete from ' . TABLE_ORDERS_PRODUCTS . ' where orders_id = "' . (int) $order_id . '"');
                     $db->Execute('delete from ' . TABLE_ORDERS_PRODUCTS_ATTRIBUTES . ' where orders_id = "' . (int) $order_id . '"');
                     $db->Execute('delete from ' . TABLE_ORDERS_PRODUCTS_DOWNLOAD . ' where orders_id = "' . (int) $order_id . '"');       
-  
+ }
 	   // update order
-    $sql = "select orders_status from " . TABLE_ORDERS . " where orders_id = '" . $qp_order_id . "' and orders_status = '". MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID."' ";
+    $sql = "select orders_status from " . TABLE_ORDERS . " where orders_id = '" . $order_id . "' and orders_status = '". MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID."' ";
     $order_query = $db->Execute($sql);
 
     if (!$order_query->EOF) {
@@ -810,8 +824,23 @@ $order->info['order_status'] = $order_status_id;
 
 			
         }
-    }   
-    $eval = $order_id;
+    } 
+	
+	//subscription handling
+if($qp_type == "subscription"){
+
+	$api->mode = "subscriptions/";
+	$addlink = $qp_id."/recurring/";
+	$qp_autocapture = (MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOCAPTURE == "No" ? FALSE : TRUE);
+	  //create new quickpay order
+	  $process_parameters["amount"]= $qp_amount;
+	  $process_parameters["order_id"]= $qp_order_id."-".$qp_id;
+	  $process_parameters["auto_capture"]= $qp_autocapture;	
+      $storder = $api->createorder($qp_order_id, $qp_currency, $process_parameters, $addlink);
+	
+}
+	  
+    $eval = $qp_lang;
 	}else{
 		
 	    $sql_data_array = array('cc_transactionid' => zen_db_input(MODULE_PAYMENT_QUICKPAY_ADVANCED_ERROR_TRANSACTION_DECLINED),
@@ -921,7 +950,7 @@ function get_error() {
 function install() {
     global $db;
    // new status for quickpay prepare orders
-        $check_query = $db->Execute("select orders_status_id from " . TABLE_ORDERS_STATUS . " where orders_status_name = 'Preparing [quickpay_advanced]' limit 1");
+        $check_query = $db->Execute("select orders_status_id from " . TABLE_ORDERS_STATUS . " where orders_status_name = 'Preparing [Quickpay]' limit 1");
 
         if ($check_query->EOF) {
             $status_query = $db->Execute("select max(orders_status_id) as status_id from " . TABLE_ORDERS_STATUS);
@@ -932,14 +961,14 @@ function install() {
             $languages = zen_get_languages();
 
             for ($i = 0, $n = sizeof($languages); $i < $n; $i++) {
-                $db->Execute("insert into " . TABLE_ORDERS_STATUS . " (orders_status_id, language_id, orders_status_name) values ('" . $status_id . "', '" . $languages[$i]['id'] . "', 'Preparing [quickpay_advanced]')");
+                $db->Execute("insert into " . TABLE_ORDERS_STATUS . " (orders_status_id, language_id, orders_status_name) values ('" . $status_id . "', '" . $languages[$i]['id'] . "', 'Preparing [Quickpay]')");
             }
 
         }
 
 
         // new status for quickpay rejected orders
-        $check_query = $db->Execute("select orders_status_id from " . TABLE_ORDERS_STATUS . " where orders_status_name = 'Rejected [quickpay_advanced]' limit 1");
+        $check_query = $db->Execute("select orders_status_id from " . TABLE_ORDERS_STATUS . " where orders_status_name = 'Rejected [Quickpay]' limit 1");
 
         if ($check_query->EOF) {
             $status_query = $db->Execute("select max(orders_status_id) as status_id from " . TABLE_ORDERS_STATUS);
@@ -949,29 +978,26 @@ function install() {
             $languages = zen_get_languages();
 
             for ($i = 0, $n = sizeof($languages); $i < $n; $i++) {
-                $db->Execute("insert into " . TABLE_ORDERS_STATUS . " (orders_status_id, language_id, orders_status_name) values ('" . $status_rejected_id . "', '" . $languages[$i]['id'] . "', 'Rejected [quickpay_advanced]')");
+                $db->Execute("insert into " . TABLE_ORDERS_STATUS . " (orders_status_id, language_id, orders_status_name) values ('" . $status_rejected_id . "', '" . $languages[$i]['id'] . "', 'Rejected [Quickpay]')");
             }
 
 		}
 		
-        $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable quickpay_advanced', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_STATUS', 'False', 'Do you want to accept quickpay payments?', '6', '3', 'zen_cfg_select_option(array(\'True\', \'False\'), ', now())");
+        $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable Quickpay payments', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_STATUS', 'False', 'Do you want to accept quickpay payments?', '6', '3', 'zen_cfg_select_option(array(\'True\', \'False\'), ', now())");
 
         $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, use_function, set_function, date_added) values ('Payment Zone', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ZONE', '0', 'If a zone is selected, only enable this payment method for that zone.', '6', '2', 'tep_get_zone_class_title', 'zen_cfg_pull_down_zone_classes(', now())");
        
-	    $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Quickpay Merchant Id', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_MERCHANTID', '', 'Enter Merchant id', '6', '6', now())"); 
+	    $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Quickpay Merchant ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_MERCHANTID', '', 'Enter Merchant ID (As stated in your quickpay manager \"integrations\" tab)', '6', '6', now())"); 
 		
-		$db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Quickpay Aggreement Id', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID', '', 'Enter Merchant Agreement id', '6', '6', now())");
+		$db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Quickpay PAYMENT WINDOW Agreement ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID', '', 'Enter Payment Window Agreement id (As stated in your quickpay manager \"integrations\" tab)', '6', '6', now())");
 
-		$db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Set API key', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_APIKEY', '', 'Enter the API key for your Quickpay Payment Gateway', '6', '0', now())");
-		
-		 $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Set Private key for your Quickpay Payment Gateway', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_PRIVATEKEY', '', 'Enter your Private key.', '6', '6', now())");
 		 
-		 $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('API USER KEY', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY', '', 'Used for payment validation and handling transactions from your backend order page.', '6', '6', now())");
+		 $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('API USER key', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY', '', 'Enter API USER key (As stated in your quickpay manager \"integrations\" tab)', '6', '6', now())");
 		
 $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Subscription payment', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION', 'Normal', 'Set Subscription payment as default (normal is single payment).', '6', '0', 'zen_cfg_select_option(array(\'Normal\', \'Subscription\'), ',now())");
 
 		
-$db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Autofee', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOFEE', 'No', 'Does customer pay the cardfee?<br>Set fees in <a href=\"https://manage.quickpay.net/\" target=\"_blank\"><u>Quickpay manager</u></a>', '6', '0', 'zen_cfg_select_option(array(\'Yes\', \'No\'), ',now())");
+$db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Autofee', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOFEE', 'No', 'Does customer pay the cardfee?<br>Set up fees in <a href=\"https://manage.quickpay.net/\" target=\"_blank\"><u>Quickpay manager</u></a>', '6', '0', 'zen_cfg_select_option(array(\'Yes\', \'No\'), ',now())");
 
 $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Autocapture', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOCAPTURE', 'No', 'Use autocapture?', '6', '0', 'zen_cfg_select_option(array(\'Yes\', \'No\'), ',now())");     
         for ($i = 1; $i <= $this->num_groups; $i++) {
@@ -1014,7 +1040,7 @@ $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, conf
             $db->Execute("ALTER TABLE " . TABLE_ORDERS . " ADD cc_cardhash TEXT NOT NULL");
         } 
   
-          
+       $db->Execute("ALTER TABLE  " . TABLE_ORDERS . " CHANGE  cc_expires  cc_expires VARCHAR( 8 )  NULL DEFAULT NULL"); 
           
    
                 
@@ -1034,7 +1060,7 @@ $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, conf
    *
    */
   function keys() {
-        $keys = array('MODULE_PAYMENT_QUICKPAY_ADVANCED_STATUS', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ZONE', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_SORT_ORDER','MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_MERCHANTID','MODULE_PAYMENT_QUICKPAY_ADVANCED_APIKEY', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_PRIVATEKEY','MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY','MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID','MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOFEE','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOCAPTURE','MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT');
+        $keys = array('MODULE_PAYMENT_QUICKPAY_ADVANCED_STATUS', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ZONE', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_SORT_ORDER','MODULE_PAYMENT_QUICKPAY_ADVANCED_MERCHANTID','MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY','MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID','MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOFEE','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOCAPTURE','MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT');
 
 		
         for ($i = 1; $i <= $this->num_groups; $i++) {
@@ -1051,23 +1077,7 @@ $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, conf
    */
    
    
-  function create_order() {
-    global $db;
 
-    // Create an entry in the orders-table in order to get an order-id we can use
-    // This entry only works as a reservation.
-    // If no other data is added, the order will not be displayed in OsCommerce
-    $sql_data_array = array('customers_id' => $_SESSION['customer_id'],
-                            'date_purchased' => 'now()',
-                            'orders_status' => MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID);
-    zen_db_perform(TABLE_ORDERS, $sql_data_array);
-   $oid = $db->insert_ID();
-	  $sql_data_array = array('orders_status_id' => MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID,
-      'orders_id' => $oid);
-    //zen_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
-     
-	 return $oid;
-  }
 
   /**
    *

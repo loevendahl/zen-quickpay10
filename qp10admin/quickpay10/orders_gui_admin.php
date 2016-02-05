@@ -1,4 +1,7 @@
 <?php
+ini_set("display_errors", "on");
+error_reporting(0);
+
 /*
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
@@ -10,28 +13,57 @@
 
 if(strstr($order->info['cc_cardhash'],"Subscription")){
 	$subcription = true;
-	$api->mode ="subscriptions";
+
 
 	
 }
-if (zen_not_null($order->info['cc_transactionid']) && $api->init()) {
+if ($api->init()) {
+
 
 try {
-
-  $statusinfo = $api->status($order->info['cc_transactionid']); 
-  $ostatus['amount'] = $statusinfo["operations"][0]["amount"];
-  $ostatus['balance'] = $statusinfo["balance"];
-  $ostatus['currency'] = $statusinfo["currency"];
+    $api->mode = (MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "payments?order_id=" : "subscriptions?order_id=");
+  $statusinfo = $api->status(MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID."_".sprintf('%04d', $_GET["oID"])); 
+  $ostatus['amount'] = $statusinfo[0]["operations"][0]["amount"];
+  $ostatus['balance'] = $statusinfo[0]["balance"];
+  $ostatus['currency'] = $statusinfo[0]["currency"];
   //get the latest operation
-  $operations= array_reverse($statusinfo["operations"]);
+  $operations= array_reverse($statusinfo[0]["operations"]);
   $amount = $operations[0]["amount"];
   $ostatus['qpstat'] = $operations[0]["qp_status_code"];
   $ostatus['type'] = $operations[0]["type"];
   $resttocap = $ostatus['amount'] - $ostatus['balance'];
-  $resttorefund = $statusinfo["balance"];
+  $resttorefund = $statusinfo[0]["balance"];
   $allowcapture = ($operations[0]["pending"] ? false : true);
   $allowcancel = true;
+  $testmode = $statusinfo[0]["test_mode"];
+  $type = $statusinfo[0]["type"];
+  $id = $statusinfo[0]["id"];
 
+  //reset mode
+    $api->mode = (MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION == "Normal" ? "payments/" : "subscriptions/");
+if(!$ostatus['type']){
+	 //payment is  initial
+  $totals = array_reverse($order->totals);
+  $process_parameters["amount"] = (filter_var($totals[0]["text"], FILTER_SANITIZE_NUMBER_INT))*100;
+	
+
+ }else{
+  $process_parameters["amount"] = $resttocap;
+  
+}	
+  $process_parameters["callbackurl"] = HTTP_SERVER.DIR_WS_CATALOG."callback10.php?oid=".$oID."&transactionid=".$statusinfo[0]["id"]."&type=".$statusinfo[0]["type"];
+  $process_parameters["continueurl"] = HTTP_SERVER.DIR_WS_CATALOG."callback10.php?oid=".$oID."&transactionid=".$statusinfo[0]["id"]."&type=".$statusinfo[0]["type"]; //
+  $process_parameters["cancelurl"] =   HTTP_SERVER.DIR_WS_CATALOG;
+  $process_parameters["reference_title"] = "admin link";
+  $process_parameters["category"] = MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT;
+  $process_parameters["product_id"] = "PO3";
+  $process_parameters["vat_amount"] = $process_parameters["amount"]*0.25;
+  $process_parameters["customer_email"] = $order->customer["email_address"];
+  $process_parameters["currency"] = $ostatus['currency'];
+
+
+ $storder = $api->link($id, $process_parameters);
+ $plink = $storder["url"];
   //allow split payments and split refunds
   if(($ostatus['type'] == "capture" ) ){
 				
@@ -63,15 +95,17 @@ try {
     ?>
 
     <tr>
-        <td class="main"><b><?php echo ENTRY_QUICKPAY_TRANSACTION; ?></b></td>
-        <td class="main"><?php
-
-    if ($statusinfo) {
+        <td class="main" valign="top"><b><?php echo ENTRY_QUICKPAY_TRANSACTION; ?></b></td>
+        <td class="main" ><?php
+if ($statusinfo[0]["id"] && $api->mode == "subscriptions/" && !$error) {
+	echo SUBSCRIPTION_ADMIN;
+}
+    if ($statusinfo[0]["id"] && $api->mode == "payments/") {
         $statustext = array();
         $statustext["capture"] = INFO_QUICKPAY_CAPTURED;
         $statustext["cancel"] = INFO_QUICKPAY_REVERSED;
         $statustext["refund"] = INFO_QUICKPAY_CREDITED;
-	  	$formatamount= explode(',',number_format($amount/100,2,',','.'));
+	  	$formatamount= explode(',',number_format($amount/100,2,',',''));
 	    $amount_big = $formatamount[0];
         $amount_small = $formatamount[1];
 
@@ -113,7 +147,7 @@ if($allowcapture){
 	
 		if($resttocap > 0 ){
 			echo "<br><b>".IMAGE_TRANSACTION_CAPTURE_INFO."</b><br>";
-			$formatamount= explode(',',number_format($resttocap/100,2,',','.'));
+			$formatamount= explode(',',number_format($resttocap/100,2,',',''));
 	    $amount_big = $formatamount[0];
         $amount_small = $formatamount[1];
 	         echo zen_draw_form('transaction_form', FILENAME_ORDERS, zen_get_all_get_params(array('action')) . 'action=quickpay_capture');
@@ -144,7 +178,7 @@ if($allowcapture){
 
 	echo "<br><br>";
 		}
-			$formatamount= explode(',',number_format($resttorefund/100,2,',','.'));
+			$formatamount= explode(',',number_format($resttorefund/100,2,',',''));
 	    $amount_big = $formatamount[0];
         $amount_small = $formatamount[1];	
 			if($resttorefund > 0){
@@ -201,13 +235,26 @@ if($allowcapture){
     ?> </td>
     <tr>
         <td class="main" valign="top"><b><?php echo ENTRY_QUICKPAY_TRANSACTION_ID; ?></b></td>
-        <td class="main"><?php echo $order->info['cc_transactionid']; ?></b></td>
+        <td class="main"><?php echo $id.($testmode== true ? '<font color="red"> TEST MODE</font>' : ''); ?></b></td>
     </tr>
         
     <tr>
         <td class="main"><b><?php echo ENTRY_QUICKPAY_CARDHASH; ?></b></td>
         <td class="main"><?php echo $order->info['cc_cardhash']; ?></b></td>
     </tr>
+    <?php // if(!$ostatus['type']){?>
+       <tr>
+        <td class="main"><b><?php echo "Payment link"; ?></b></td>
+        <td class="main"><?php echo "<a target='_blank' href='".$plink."' >".$plink."</a>"; ?></td>
+    </tr>
     <?php
+	
+	
+	//}
 }
-?>
+
+?> 
+<tr>
+        <td class="main" valign="top"><b><?php echo "Quickpay status"; ?></b></td>
+        <td class="main"><?php echo ($operations ? $api->log_operations($operations, $ostatus['currency']) : "Initial"); ?></td>
+    </tr>

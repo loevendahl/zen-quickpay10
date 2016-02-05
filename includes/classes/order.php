@@ -655,7 +655,7 @@ class order extends base {
                             );
 
     // QuickPay changed start
-    if ($_SESSION['payment'] == 'quickpay_advanced') {
+    if ($_SESSION['payment'] == 'quickpay_advanced' && $_SESSION['order_id']) {
         zen_db_perform(TABLE_ORDERS, $sql_data_array, 'update', 'orders_id = ' . $_SESSION['order_id']);
         $insert_id = $_SESSION['order_id']; 
         // Update transaction_id from db
@@ -671,26 +671,47 @@ class order extends base {
 
      $this->notify('NOTIFY_ORDER_DURING_CREATE_ADDED_ORDER_HEADER', array_merge(array('orders_id' => $insert_id, 'shipping_weight' => $_SESSION['cart']->weight), $sql_data_array));
 
-// QuickPay changed start
-//assign totals and history for all other orders than Quickpay preparing orders
 
-if($this->info["order_status"] != MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID){
 
- // QuickPay changed end
- 	 
+
+
+	
     for ($i=0, $n=sizeof($zf_ot_modules); $i<$n; $i++) {
+		
+		   //avoid duplicate totals on preparing (linkable) orders
+    $order_tsq = "select title
+                             from " . TABLE_ORDERS_TOTAL . "
+                             where orders_id = '" . (int)$insert_id . "'
+                             and class = '".$zf_ot_modules[$i]['code']."' ";
+
+
+    $order_ts = $db->Execute($order_tsq);
+
+	
+	if($order_ts->EOF){
       $sql_data_array = array('orders_id' => $insert_id,
                               'title' => $zf_ot_modules[$i]['title'],
                               'text' => $zf_ot_modules[$i]['text'],
                               'value' => (is_numeric($zf_ot_modules[$i]['value'])) ? $zf_ot_modules[$i]['value'] : '0',
                               'class' => $zf_ot_modules[$i]['code'],
                               'sort_order' => $zf_ot_modules[$i]['sort_order']);
+   
 
      zen_db_perform(TABLE_ORDERS_TOTAL, $sql_data_array);
+	 
 
+//
       $this->notify('NOTIFY_ORDER_DURING_CREATE_ADDED_ORDERTOTAL_LINE_ITEM', $sql_data_array);
     }
 
+	}
+
+// QuickPay changed start
+//assign  history and notification for all other orders than Quickpay preparing orders
+
+if($this->info["order_status"] != MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID){
+
+ // QuickPay changed end
     $customer_notification = (SEND_EMAILS == 'true' ) ? '1' : '0';
 
     $sql_data_array = array('orders_id' => $insert_id,
