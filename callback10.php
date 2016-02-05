@@ -18,7 +18,7 @@ require_once(DIR_FS_CATALOG.DIR_WS_CLASSES.'order.php');
 	$order = new order($_SESSION['order_id']);
 	$payment = new quickpay_advanced();
     $tr = $payment->process_callback();
-	mail("kl@blkom.dk","linkback",json_encode($tr).json_encode($order));
+
 
 $db->Execute('delete from ' . TABLE_CUSTOMERS_BASKET . ' where customers_id = "' . $order->customer["id"] . '"');
 	header("location:".($_SERVER['SERVER_PROTOCOL'] == "HTTPS" ? HTTPS_SERVER.DIR_WS_HTTPS_CATALOG : HTTP_SERVER.DIR_WS_CATALOG)."index.php?main_page=account_history_info&order_id=".$_SESSION['order_id']);
