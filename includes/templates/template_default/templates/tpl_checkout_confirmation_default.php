@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Page Template
  *
@@ -167,14 +168,35 @@
   if (MODULE_ORDER_TOTAL_INSTALLED ) {
   
  //quickpay added start 
- if(!strstr($_SESSION['payment'],"quickpay")){
+ if(strstr($_SESSION['payment'],"quickpay")){
   //quickpay added end
-  //processed by preparing/linked order
-    $order_totals = $order_total_modules->process();
-
+  //remove preparing/linked order total
+ $db->Execute('delete from ' . TABLE_ORDERS_TOTAL . ' where orders_id = "' . (int) $_SESSION['order_id'] . '"');
  //quickpay added start 
  }
  //quickpay added end 
+     $order_totals = $order_total_modules->process();
+  //quickpay added start 
+ if(strstr($_SESSION['payment'],"quickpay")){
+  //quickpay added end
+  //Insert updated order total if already processed by preparing/linked order
+    for ($i=0, $n=sizeof($order_totals); $i<$n; $i++) {
+      $sql_data_array = array('orders_id' => $_SESSION['order_id'],
+                              'title' => $order_totals[$i]['title'],
+                              'text' => $order_totals[$i]['text'],
+                              'value' => (is_numeric($order_totals[$i]['value'])) ? $order_totals[$i]['value'] : '0',
+                              'class' => $order_totals[$i]['code'],
+                              'sort_order' => $order_totals[$i]['sort_order']);
+     zen_db_perform(TABLE_ORDERS_TOTAL, $sql_data_array);
+
+    }
+ //quickpay added start 
+ }
+ //quickpay added end 
+ 
+ 
+ 
+ 
 ?>
 <div id="orderTotals"><?php $order_total_modules->output(); ?></div>
 <?php
