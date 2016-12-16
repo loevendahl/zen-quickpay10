@@ -1,6 +1,4 @@
 <?php
-ini_set('display_errors','on');
-error_reporting(0);
 
 require_once(DIR_FS_CATALOG.DIR_WS_CLASSES.'QuickpayApi.php');
 
@@ -495,10 +493,10 @@ function process_button() {
 		$qp_version ="v10";
         $qp_apikey = MODULE_PAYMENT_QUICKPAY_ADVANCED_APIKEY;
 
-			$qp_product_id = "P03";
-			$qp_category = MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT;
-			$qp_reference_title = $qp_order_id;
-			$qp_vat_amount = ($order->info['tax'] ? $order->info['tax'] : "0.00");
+	//		$qp_product_id = "P03";
+	//		$qp_category = MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT;
+	//		$qp_reference_title = $qp_order_id;
+	//		$qp_vat_amount = ($order->info['tax'] ? $order->info['tax'] : "0.00");
 
   //custom vars
 	   $varsvalues = array('variables[customers_id]' => $order->customer['customers_id'],
@@ -614,10 +612,10 @@ function process_button() {
 					'merchant_id'                  => $qp_merchant_id,
 					'order_id'                     => $qp_order_id,
 					'payment_methods'              => $qp_cardtypelock,
-					'product_id'                   => $qp_product_id,
-					'category'                     => $qp_category,
-					'reference_title'              => $qp_reference_title,
-					'vat_amount'                   => $qp_vat_amount,
+					//'product_id'                   => $qp_product_id,
+					//'category'                     => $qp_category,
+					//'reference_title'              => $qp_reference_title,
+					//'vat_amount'                   => $qp_vat_amount,
 					'subscription'                 => $qp_subscription,
 					'version'                      => 'v10'
 						);
@@ -1022,7 +1020,7 @@ $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, conf
 
 
 						
-$db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Paii shop category', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT','', 'Shop category must be set, if using Paii cardlock (paii), ', '6', '0','zen_cfg_pull_down_paii_list(', now())");
+//$db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Paii shop category', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT','', 'Shop category must be set, if using Paii cardlock (paii), ', '6', '0','zen_cfg_pull_down_paii_list(', now())");
 	   
 	    $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Quickpay preparing Order Status', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID', '" . $status_id . "', 'Set the status of preparing orders made with this payment module to this value', '6', '0', 'zen_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
       
@@ -1060,7 +1058,7 @@ $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, conf
    *
    */
   function keys() {
-        $keys = array('MODULE_PAYMENT_QUICKPAY_ADVANCED_STATUS', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ZONE', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_SORT_ORDER','MODULE_PAYMENT_QUICKPAY_ADVANCED_MERCHANTID','MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY','MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID','MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOFEE','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOCAPTURE','MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_CAT');
+        $keys = array('MODULE_PAYMENT_QUICKPAY_ADVANCED_STATUS', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ZONE', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_SORT_ORDER','MODULE_PAYMENT_QUICKPAY_ADVANCED_MERCHANTID','MODULE_PAYMENT_QUICKPAY_ADVANCED_AGGREEMENTID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_USERAPIKEY','MODULE_PAYMENT_QUICKPAY_ADVANCED_PREPARE_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_ORDER_STATUS_ID', 'MODULE_PAYMENT_QUICKPAY_ADVANCED_REJECTED_ORDER_STATUS_ID','MODULE_PAYMENT_QUICKPAY_ADVANCED_SUBSCRIPTION','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOFEE','MODULE_PAYMENT_QUICKPAY_ADVANCED_AUTOCAPTURE');
 
 		
         for ($i = 1; $i <= $this->num_groups; $i++) {
@@ -1142,7 +1140,7 @@ $db->Execute("insert into " . TABLE_CONFIGURATION . " (configuration_title, conf
             case 'fbg1886': return MODULE_PAYMENT_QUICKPAY_ADVANCED_FBG1886_TEXT;
             case 'paypal': return MODULE_PAYMENT_QUICKPAY_ADVANCED_PAYPAL_TEXT;
             case 'sofort': return MODULE_PAYMENT_QUICKPAY_ADVANCED_SOFORT_TEXT;
-            case 'paii': return MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_TEXT;
+            //case 'paii': return MODULE_PAYMENT_QUICKPAY_ADVANCED_PAII_TEXT;
 			case 'mobilepay': return MODULE_PAYMENT_QUICKPAY_ADVANCED_MOBILEPAY_TEXT;
  
    }
@@ -1231,7 +1229,7 @@ private function json_message_front($input){
 }
 
 
-  
+  /* // deprecated, maybe reuseable...
   function zen_cfg_pull_down_paii_list() {
 	  global $db;
 	//Paii categories
@@ -1294,3 +1292,4 @@ foreach($paiioptions as $arrid => $val){
 	".$options."	
 	</select>";
   }
+  */

@@ -140,7 +140,7 @@ function json_message($input){
   function get_transactionid($order_id) {
 	  global $db;
     $transaction_query = $db->Execute("select cc_transactionid from " . TABLE_ORDERS . " where orders_id = '" . (int)$order_id . "'");
-   mail("kl@blkom.dk","cap", $transaction_query->fields['cc_transactionid']);
+
     return $transaction_query->fields['cc_transactionid'];    
   }
 ?>
